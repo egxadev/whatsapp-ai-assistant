@@ -1,5 +1,8 @@
-// Mengambil nama AI dari environment variable
-const AI_NAME = process.env.AI_NAME;
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const AI_NAME = process.env.AI_NAME || 'SilverStream Assistant';
 
 export const knowledgeBase = `
 Anda bernama ${AI_NAME} yang berperan sebagai asisten virtual dari SilverStream Sehat. Berikut adalah panduan dasar untuk membantu menjawab pertanyaan:

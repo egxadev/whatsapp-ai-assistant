@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>WhatsApp QR Code</title>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+        <style>
+            html,
+            body {
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family: Arial, sans-serif;
+                min-height: 100vh;
+                background-color: #f0f2f5;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+            }
+            .container {
+                margin-top: 32px;
+                width: 100%;
+                max-width: 340px;
+                background-color: #fff;
+                border-radius: 12px;
+                box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07);
+                padding: 20px 12px 16px 12px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+            h1 {
+                font-size: 1.3rem;
+                margin-bottom: 10px;
+                font-weight: bold;
+                text-align: center;
+            }
+            #status {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 12px;
+                font-size: 1rem;
+                font-weight: 500;
+            }
+            .status {
+                padding: 7px 0;
+                border-radius: 5px;
+                margin: 0 0 12px 0;
+                transition: background 0.2s;
+            }
+            .connected {
+                background-color: #dcf8c6;
+                color: #075e54;
+            }
+            .disconnected {
+                background-color: #ffebee;
+                color: #c62828;
+            }
+            .loading {
+                background-color: #fff3e0;
+                color: #ef6c00;
+            }
+            #qrcode {
+                margin: 0 0 10px 0;
+                padding: 8px;
+                background: #fff;
+                border-radius: 8px;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 250px;
+                min-width: 250px;
+            }
+            #qrcode img,
+            #qrcode canvas {
+                width: 100%;
+                max-width: 350px;
+                height: auto;
+                display: block;
+                margin: 0 auto;
+            }
+            p {
+                margin: 0 0 4px 0;
+                color: #555;
+                font-size: 0.95rem;
+                text-align: center;
+            }
+            @media (max-width: 500px) {
+                .container {
+                    max-width: 98vw;
+                    padding: 10px 2vw 10px 2vw;
+                }
+                #qrcode {
+                    min-width: 0;
+                    min-height: 0;
+                    padding: 4px;
+                }
+                #qrcode img,
+                #qrcode canvas {
+                    max-width: 80vw;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>WhatsApp QR Code</h1>
+            <div id="status" class="status loading">Loading...</div>
+            <div id="qrcode"></div>
+            <p>Scan this QR code with WhatsApp to connect</p>
+        </div>
+
+        <script>
+            const socket = io();
+            const statusDiv = document.getElementById('status');
+            const qrcodeDiv = document.getElementById('qrcode');
+
+            socket.on('connect', () => {
+                // No debug log
+            });
+
+            socket.on('status', (data) => {
+                statusDiv.textContent = `Status: ${data.status}`;
+                statusDiv.className = `status ${data.status}`;
+
+                if (data.status === 'connected') {
+                    qrcodeDiv.innerHTML = '<p>WhatsApp is connected!</p>';
+                } else {
+                    qrcodeDiv.innerHTML = `<img style="width: 150px !important" src="/images/pinwheel.svg" alt="Loading..." />`;
+                }
+            });
+
+            socket.on('qr', (qr) => {
+                qrcodeDiv.innerHTML = '';
+                try {
+                    if (!qr || typeof qr !== 'string') {
+                        throw new Error('Invalid QR data format');
+                    }
+                    const qrOptions = {
+                        text: qr,
+                        width: 250,
+                        height: 250,
+                        colorDark: '#075e54',
+                        colorLight: '#ffffff',
+                        correctLevel: 3, // H level error correction
+                    };
+                    if (typeof QRCode === 'undefined') {
+                        throw new Error('QRCode library not loaded');
+                    }
+                    new QRCode(qrcodeDiv, qrOptions);
+                } catch (error) {
+                    qrcodeDiv.innerHTML = `<p>Error generating QR code</p>`;
+                }
+            });
+
+            socket.on('disconnect', () => {
+                statusDiv.textContent = 'Disconnected from server';
+                statusDiv.className = 'status disconnected';
+                qrcodeDiv.innerHTML = `<img style="width: 150px !important" src="/images/pinwheel.svg" alt="Loading..." />`;
+            });
+        </script>
+    </body>
+</html>
