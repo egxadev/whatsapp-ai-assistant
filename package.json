@@ -1,0 +1,18 @@
+{
+  "name": "whatsapp-chatbot-assistant",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node main.js"
+  },
+  "author": "Ega Alifya Firnando",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@google/genai": "^1.0.0",
+    "dotenv": "^16.5.0",
+    "qrcode-terminal": "latest",
+    "whatsapp-web.js": "latest"
+  }
+}
