@@ -3,3 +3,4 @@ node_modules
 sessions
 .wwebjs_cache
 .DS_Store
+package-lock.json

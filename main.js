@@ -1,7 +1,6 @@
 import whatsappWeb from 'whatsapp-web.js';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { knowledgeBase } from './datasets/silverstream.js';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
@@ -118,6 +117,12 @@ async function processWhatsAppMessage(message) {
     console.log('Received message:', message.body);
 
     if (message.body.includes(COMMAND_PREFIX)) {
+        // get data knowledge base from database
+        const [dataset] = await pool.execute(
+            'SELECT * FROM knowledge_base where status = 1'
+        );
+        const knowledgeBase = dataset.map((row) => `${row.content}`).join('\n\n');
+
         const userQuery = message.body.replace(COMMAND_PREFIX, '').trim();
         const contextEnrichedQuery = `${knowledgeBase}\n\n${userQuery}`;
         const response = await generateGeminiResponse(contextEnrichedQuery);
