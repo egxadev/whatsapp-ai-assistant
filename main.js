@@ -113,18 +113,30 @@ async function generateGeminiResponse(userInput) {
  * Processes incoming WhatsApp messages
  * @param {Object} message - WhatsApp message object
  */
-async function processWhatsAppMessage(message) {
-    console.log('Received message:', message.body);
+async function processWhatsAppMessage(message) {   
+    // get data knowledge base from database
+    const [dataset] = await pool.execute('SELECT content FROM knowledge_base where status = 1');
+    const knowledgeBase = dataset.map((row) => `${row.content}`).join('\n\n');
 
-    if (message.body.includes(COMMAND_PREFIX)) {
-        // get data knowledge base from database
-        const [dataset] = await pool.execute(
-            'SELECT * FROM knowledge_base where status = 1'
-        );
-        const knowledgeBase = dataset.map((row) => `${row.content}`).join('\n\n');
-
-        const userQuery = message.body.replace(COMMAND_PREFIX, '').trim();
-        const contextEnrichedQuery = `${knowledgeBase}\n\n${userQuery}`;
+    if (COMMAND_PREFIX) {
+        if (message.body.includes(COMMAND_PREFIX)) {
+            const userQuery = message.body.replace(COMMAND_PREFIX, '').trim();
+            const contextEnrichedQuery = `${knowledgeBase}\n\n${userQuery}`;
+            const response = await generateGeminiResponse(contextEnrichedQuery);
+            await whatsappClient.sendMessage(message.from, response);
+    
+            // Simpan ke database
+            try {
+                await pool.execute(
+                    'INSERT INTO chat_histories (phone, question, answer) VALUES (?, ?, ?)',
+                    [message.from, userQuery, response]
+                );
+            } catch (err) {
+                console.error('Gagal menyimpan log ke database:', err);
+            }
+        }
+    } else {
+        const contextEnrichedQuery = `${knowledgeBase}\n\n${message.body}`;
         const response = await generateGeminiResponse(contextEnrichedQuery);
         await whatsappClient.sendMessage(message.from, response);
 
@@ -132,7 +144,7 @@ async function processWhatsAppMessage(message) {
         try {
             await pool.execute(
                 'INSERT INTO chat_histories (phone, question, answer) VALUES (?, ?, ?)',
-                [message.from, userQuery, response]
+                [message.from, message.body, response]
             );
         } catch (err) {
             console.error('Gagal menyimpan log ke database:', err);
@@ -165,7 +177,20 @@ whatsappClient.on('disconnected', () => {
     io.emit('status', { status: 'disconnected' });
 });
 
-whatsappClient.on('message_create', processWhatsAppMessage);
+whatsappClient.on('message', async (message) => {
+    console.log('Received message:', message.body);
+
+    // Ignore if message is from status broadcast
+    if (message.from == 'status@broadcast') return;
+
+    // Ignore if it's a quoted message, (e.g. Bot reply)
+    if (message.hasQuotedMsg) return;
+
+    // Ignore if it's from me (bot's own messages)
+    if (message.fromMe) return;
+
+    await processWhatsAppMessage(message);
+});
 
 // Start the server
 const PORT = process.env.PORT || 3000;
