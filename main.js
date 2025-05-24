@@ -114,7 +114,9 @@ async function generateGeminiResponse(userInput) {
  * @returns {Promise<string>} Combined knowledge base content
  */
 async function fetchKnowledgeBase() {
-    const [dataset] = await pool.execute('SELECT content FROM knowledge_base where status = 1');
+    const [dataset] = await pool.execute(
+        'SELECT content FROM knowledge_bases where status = 1'
+    );
     return dataset.map((row) => `${row.content}`).join('\n\n');
 }
 
@@ -152,7 +154,7 @@ async function sendResponseAndSaveHistory(to, question, response) {
  */
 async function processWhatsAppMessage(message) {
     const knowledgeBase = await fetchKnowledgeBase();
-    
+
     if (COMMAND_PREFIX && message.body.includes(COMMAND_PREFIX)) {
         const userQuery = message.body.replace(COMMAND_PREFIX, '').trim();
         const contextEnrichedQuery = `${knowledgeBase}\n\n${userQuery}`;
