@@ -7,6 +7,8 @@ import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mysql from 'mysql2/promise';
+import axios from 'axios';
+import crypto from 'crypto';
 
 // Load environment variables
 dotenv.config();
@@ -79,6 +81,38 @@ io.on('connection', (socket) => {
         status: whatsappClient.info ? 'connected' : 'disconnected',
     });
 });
+
+/**
+ * Encrypts data using AES-256-CBC with additional security measures
+ * @param {string} text - Text to encrypt
+ * @returns {string} Encrypted text in base64 format
+ */
+function encryptData(text) {
+    const algorithm = 'aes-256-cbc';
+    // Generate key using SHA-256 to match Laravel's hash function
+    const key = crypto
+        .createHash('sha256')
+        .update(process.env.ENCRYPTION_KEY)
+        .digest();
+    const iv = crypto.randomBytes(16);
+
+    // Add timestamp to prevent replay attacks
+    const timestamp = Date.now();
+    const dataToEncrypt = `${timestamp}:${text}`;
+
+    const cipher = crypto.createCipheriv(algorithm, key, iv);
+    let encrypted = cipher.update(dataToEncrypt, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+
+    // Add HMAC for data integrity verification
+    const hmac = crypto
+        .createHmac('sha256', key)
+        .update(encrypted)
+        .digest('base64');
+
+    // Combine IV, encrypted data, and HMAC
+    return `${iv.toString('base64')}:${encrypted}:${hmac}`;
+}
 
 /**
  * Generates response using Gemini AI model
@@ -180,23 +214,102 @@ function shouldProcessMessage(message) {
 }
 
 // WhatsApp client event handlers
-whatsappClient.once('ready', () => {
+whatsappClient.once('ready', async () => {
     console.log('WhatsApp client is ready!');
     io.emit('status', { status: 'connected' });
+
+    try {
+        const response = await axios.post(
+            process.env.WEBHOOK_URL,
+            {
+                qr_code: null,
+                status: 'connected',
+                timestamp: new Date().toISOString(),
+            },
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+
+        if (response.success) {
+            console.log('Ready to webhook successfully');
+        }
+    } catch (error) {
+        console.error('Failed to send ready status to webhook:', error.message);
+    }
 });
 
-whatsappClient.on('authenticated', () => {
+whatsappClient.on('authenticated', async () => {
     console.log('Authenticated');
     io.emit('status', { status: 'connected' });
+
+    try {
+        const response = await axios.post(
+            process.env.WEBHOOK_URL,
+            {
+                qr_code: null,
+                status: 'connected',
+                timestamp: new Date().toISOString(),
+            },
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+
+        if (response.success) {
+            console.log('Authenticated to webhook successfully');
+        }
+    } catch (error) {
+        console.error(
+            'Failed to send authenticated status to webhook:',
+            error.message
+        );
+    }
 });
 
 whatsappClient.on('auth_failure', (error) => {
     console.log('Authentication failed', error);
 });
 
-whatsappClient.on('qr', (qr) => {
-    console.log('QR code received', qr);
+whatsappClient.on('qr', async (qr) => {
+    console.log('QR code received');
     io.emit('qr', qr);
+
+    try {
+        // Encrypt QR data
+        const encryptedQR = encryptData(qr);
+
+        // Send encrypted QR data to webhook endpoint
+        const response = await axios.post(
+            process.env.WEBHOOK_URL,
+            {
+                qr_code: encryptedQR,
+                status: 'qr',
+                timestamp: new Date().toISOString(),
+            },
+            {
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+
+        if (response.success) {
+            console.log('Encrypted QR code sent to webhook successfully');
+        }
+    } catch (error) {
+        console.error(
+            'Failed to send encrypted QR code to webhook:',
+            error.message
+        );
+    }
 });
 
 whatsappClient.on('disconnected', () => {
