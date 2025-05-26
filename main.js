@@ -10,10 +10,15 @@ import mysql from 'mysql2/promise';
 import axios from 'axios';
 import crypto from 'crypto';
 
-// Load environment variables
+/**
+ * Load environment variables from .env file
+ */
 dotenv.config();
 
-// Setup MySQL connection pool
+/**
+ * MySQL connection pool configuration
+ * @type {mysql.Pool}
+ */
 const pool = mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
@@ -24,12 +29,16 @@ const pool = mysql.createPool({
     queueLimit: 0,
 });
 
-// Setup Express and Socket.IO
+/**
+ * Express and Socket.IO server setup
+ */
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer);
 
-// Get current directory
+/**
+ * Get current directory path
+ */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -42,7 +51,9 @@ const WHATSAPP_VERSION = '2.2412.54';
 const GEMINI_MODEL = 'gemini-2.0-flash';
 const COMMAND_PREFIX = process.env.COMMAND_PREFIX;
 
-// WhatsApp client configuration
+/**
+ * WhatsApp client configuration object
+ */
 const whatsappConfig = {
     puppeteer: {
         clientId: 'whatsapp-bot',
@@ -74,7 +85,11 @@ const geminiClient = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY,
 });
 
-// Socket.IO connection handler
+/**
+ * Socket.IO connection handler
+ * @param {Socket} socket - Socket.IO socket instance
+ * @description Handles new client connections and emits initial status
+ */
 io.on('connection', (socket) => {
     console.log('Client connected');
     socket.emit('status', {
@@ -85,7 +100,8 @@ io.on('connection', (socket) => {
 /**
  * Encrypts data using AES-256-CBC with additional security measures
  * @param {string} text - Text to encrypt
- * @returns {string} Encrypted text in base64 format
+ * @returns {string} Encrypted text in base64 format with IV and HMAC
+ * @description Uses AES-256-CBC encryption with timestamp to prevent replay attacks
  */
 function encryptData(text) {
     const algorithm = 'aes-256-cbc';
@@ -118,6 +134,7 @@ function encryptData(text) {
  * Generates response using Gemini AI model
  * @param {string} userInput - User's message text
  * @returns {Promise<string>} AI generated response
+ * @description Streams response from Gemini AI model and handles errors
  */
 async function generateGeminiResponse(userInput) {
     try {
@@ -146,6 +163,7 @@ async function generateGeminiResponse(userInput) {
 /**
  * Fetches knowledge base content from database
  * @returns {Promise<string>} Combined knowledge base content
+ * @description Retrieves active knowledge base entries and combines them
  */
 async function fetchKnowledgeBase() {
     const [dataset] = await pool.execute(
@@ -159,7 +177,6 @@ async function fetchKnowledgeBase() {
  * @param {string} phone - User's phone number
  * @returns {Promise<string>} Formatted string containing the latest Q&A pair
  * @description Retrieves the most recent question and answer from chat history
- * and formats it as context for the next response
  */
 async function fetchLatestConversation(phone) {
     const [chats] = await pool.execute(
@@ -177,6 +194,7 @@ async function fetchLatestConversation(phone) {
  * @param {string} phone - User's phone number
  * @param {string} question - User's question
  * @param {string} answer - Bot's response
+ * @description Stores conversation history in database for context
  */
 async function saveChatHistory(phone, question, answer) {
     try {
@@ -194,6 +212,7 @@ async function saveChatHistory(phone, question, answer) {
  * @param {string} to - Recipient's phone number
  * @param {string} question - Original question
  * @param {string} response - Generated response
+ * @description Sends WhatsApp message and saves conversation
  */
 async function sendResponseAndSaveHistory(to, question, response) {
     await whatsappClient.sendMessage(to, response);
@@ -203,6 +222,7 @@ async function sendResponseAndSaveHistory(to, question, response) {
 /**
  * Processes incoming WhatsApp messages
  * @param {Object} message - WhatsApp message object
+ * @description Handles message processing with knowledge base and conversation history
  */
 async function processWhatsAppMessage(message) {
     const knowledgeBase = await fetchKnowledgeBase();
@@ -224,6 +244,7 @@ async function processWhatsAppMessage(message) {
  * Validates if message should be processed
  * @param {Object} message - WhatsApp message object
  * @returns {boolean} true if message should be processed
+ * @description Filters out status messages, quoted messages, and self-sent messages
  */
 function shouldProcessMessage(message) {
     if (message.from === 'status@broadcast') return false;
