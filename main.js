@@ -155,6 +155,24 @@ async function fetchKnowledgeBase() {
 }
 
 /**
+ * Fetches the latest conversation history for a given phone number
+ * @param {string} phone - User's phone number
+ * @returns {Promise<string>} Formatted string containing the latest Q&A pair
+ * @description Retrieves the most recent question and answer from chat history
+ * and formats it as context for the next response
+ */
+async function fetchLatestConversation(phone) {
+    const [chats] = await pool.execute(
+        'SELECT question, answer FROM chat_histories WHERE phone = ? ORDER BY id DESC LIMIT 1',
+        [phone]
+    );
+
+    return chats.length ? 
+        `Pertanyaan dan Jawaban sebelumnya:\n${chats[0].question} || ${chats[0].answer}\nJawablah pertanyaan dibawah ini berdasarkan acuan dataset dan pertanyaan/jawaban diatas\n` :
+        '';
+}
+
+/**
  * Saves chat history to database
  * @param {string} phone - User's phone number
  * @param {string} question - User's question
@@ -188,14 +206,15 @@ async function sendResponseAndSaveHistory(to, question, response) {
  */
 async function processWhatsAppMessage(message) {
     const knowledgeBase = await fetchKnowledgeBase();
+    const latestConversation = await fetchLatestConversation(message.from);
 
     if (COMMAND_PREFIX && message.body.includes(COMMAND_PREFIX)) {
         const userQuery = message.body.replace(COMMAND_PREFIX, '').trim();
-        const contextEnrichedQuery = `${knowledgeBase}\n\n${userQuery}`;
+        const contextEnrichedQuery = `${knowledgeBase}\n\n${latestConversation}\n\n${userQuery}`;
         const response = await generateGeminiResponse(contextEnrichedQuery);
         await sendResponseAndSaveHistory(message.from, userQuery, response);
     } else if (!COMMAND_PREFIX) {
-        const contextEnrichedQuery = `${knowledgeBase}\n\n${message.body}`;
+        const contextEnrichedQuery = `${knowledgeBase}\n\n${latestConversation}\n\n${message.body}`;
         const response = await generateGeminiResponse(contextEnrichedQuery);
         await sendResponseAndSaveHistory(message.from, message.body, response);
     }
